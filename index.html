@@ -1,380 +1,348 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Area, ScatterChart, Scatter, ZAxis, Treemap, ReferenceLine
-} from 'recharts';
-import { 
-  Users, TrendingUp, DollarSign, PieChart as PieIcon, LayoutDashboard, FileText, Download, Filter, Search, ArrowUpRight, ArrowDownRight, AlertCircle, FileSpreadsheet, Upload, Zap, Scale, Layers, Calendar, Activity
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCG HEIM - Labor Analytics Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (Specific Stable Versions) -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <!-- prop-types (Required by Recharts UMD) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Recharts (Stable UMD Version) -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f8fafc;
+        }
+        .scg-red { color: #e11d48; }
+        .bg-scg-red { background-color: #e11d48; }
+        .border-scg-red { border-color: #e11d48; }
+        .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); }
+        .hover-card:hover { transform: translateY(-2px); transition: all 0.3s ease; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        select { cursor: pointer; }
+        .recharts-responsive-container {
+            min-height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-const COLORS = ['#e11d48', '#4b5563', '#ef4444', '#374151', '#f87171', '#1f2937', '#b91c1c', '#6b7280'];
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
 
-const App = () => {
-  const [data, setData] = useState([]);
-  const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState('All');
-  const [selectedSection, setSelectedSection] = useState('All');
-  const [isXlsxLibLoaded, setIsXlsxLibLoaded] = useState(false);
+        // --- Configuration (Moved to Top to fix ReferenceError) ---
+        const SCG_RED = '#e11d48';
+        const SCG_DARK = '#1f2937';
+        const COLORS = [SCG_RED, '#4b5563', '#ef4444', '#374151', '#f87171', '#1f2937', '#b91c1c', '#6b7280'];
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js";
-    script.async = true;
-    script.onload = () => setIsXlsxLibLoaded(true);
-    document.body.appendChild(script);
+        // --- Sub-components ---
+        const KPI = ({ h, v, i, s }) => (
+            <div className="bg-white p-8 rounded-sm border border-slate-100 shadow-sm hover-card">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 bg-red-50 text-scg-red rounded-sm">
+                        <i data-lucide={i} className="w-5 h-5"></i>
+                    </div>
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{h}</p>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tighter">{v}</h3>
+                <p className="text-[9px] font-bold text-slate-300 mt-2 uppercase">{s}</p>
+            </div>
+        );
 
-    const sampleCsv = `Section,Year,month,Amount,Number of people,average
+        const App = () => {
+            const [data, setData] = useState([]);
+            const [error, setError] = useState(null);
+            const [selectedYear, setSelectedYear] = useState('All');
+            const [selectedSection, setSelectedSection] = useState('All');
+
+            // Recharts components extraction
+            const { 
+                LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
+                ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Area, Treemap 
+            } = window.Recharts || {};
+
+            // Initial Sample Data
+            useEffect(() => {
+                const sampleCsv = `Section,Year,month,Amount,Number of people,average
 Board cut,2023,9,85000,7,12142
-Board cut,2023,10,92000,7,13142
 Board cut,2025,1,103812,8,12976.5
-Board cut,2025,2,94852,7,13550.28
 Bathroom,2025,1,87606,6,14601
 Window,2025,1,45000,5,9000
 Forklift,2023,9,61120,3,20373.33`;
-    processCsvData(sampleCsv);
+                processCsvData(sampleCsv);
+            }, []);
 
-    return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
-    };
-  }, []);
+            const safeParseFloat = (val) => {
+                if (val === null || val === undefined || val === '') return 0;
+                if (typeof val === 'number') return isNaN(val) ? 0 : val;
+                const cleaned = val.toString().replace(/[^0-9.-]+/g, '');
+                const parsed = parseFloat(cleaned);
+                return isNaN(parsed) ? 0 : parsed;
+            };
 
-  const safeParseFloat = (val) => {
-    if (val === null || val === undefined || val === '') return 0;
-    if (typeof val === 'number') return isNaN(val) ? 0 : val;
-    const cleaned = val.toString().replace(/[^0-9.-]+/g, '');
-    const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? 0 : parsed;
-  };
+            const processCsvData = (csvText) => {
+                try {
+                    const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+                    if (lines.length === 0) return;
+                    const headers = lines[0].split(',').map(h => h.replace(/["\r\n\uFEFF]/g, '').trim());
+                    const rows = lines.slice(1).map(line => {
+                        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                        return headers.reduce((obj, header, i) => {
+                            obj[header] = (values[i] || '').trim().replace(/"/g, '');
+                            return obj;
+                        }, {});
+                    });
+                    mapAndSetData(rows);
+                    setError(null);
+                } catch (err) { 
+                    setError("ไม่สามารถประมวลผลไฟล์ได้: " + err.message); 
+                }
+            };
 
-  const processCsvData = (csvText) => {
-    try {
-      if (!csvText || typeof csvText !== 'string') return;
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length === 0) return;
-      const headers = lines[0].split(',').map(h => h.replace(/["\r\n]/g, '').trim());
-      const rows = lines.slice(1).map(line => {
-        const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        return headers.reduce((obj, header, i) => {
-          obj[header] = (values[i] || '').trim().replace(/"/g, '');
-          return obj;
-        }, {});
-      });
-      mapAndSetData(rows);
-    } catch (err) {
-      setError("ไม่สามารถประมวลผลไฟล์ CSV ได้");
-    }
-  };
+            const mapAndSetData = (rawRows) => {
+                const parsedData = rawRows.map(row => {
+                    const newObj = { Amount: 0, People: 0, Average: 0, Year: 'N/A', Month: 'N/A', Section: 'Unknown' };
+                    Object.keys(row).forEach(key => {
+                        const val = row[key];
+                        const cleanKey = key.toLowerCase().replace(/\s+/g, '').replace(/["']/g, '');
+                        if (cleanKey.includes('amount')) newObj.Amount = safeParseFloat(val);
+                        else if (cleanKey.includes('people') || cleanKey.includes('person')) newObj.People = safeParseFloat(val);
+                        else if (cleanKey.includes('average')) newObj.Average = safeParseFloat(val);
+                        else if (cleanKey === 'year') newObj.Year = val ? val.toString() : 'N/A';
+                        else if (cleanKey === 'month') newObj.Month = val ? val.toString() : 'N/A';
+                        else if (cleanKey === 'section') newObj.Section = val ? val.toString() : 'Unknown';
+                    });
+                    return newObj;
+                }).filter(item => item.Section && item.Section !== 'Unknown');
+                setData(parsedData);
+            };
 
-  const mapAndSetData = (rawRows) => {
-    try {
-      const parsedData = rawRows.map(row => {
-        const newObj = { Amount: 0, People: 0, Average: 0, Year: 'N/A', Month: 'N/A', Section: 'Unknown' };
-        Object.keys(row).forEach(key => {
-          const val = row[key];
-          const cleanKey = key.toLowerCase().replace(/\s+/g, '').replace(/["']/g, '');
-          if (cleanKey.includes('amount')) newObj.Amount = safeParseFloat(val);
-          else if (cleanKey.includes('people') || cleanKey.includes('person')) newObj.People = safeParseFloat(val);
-          else if (cleanKey.includes('average')) newObj.Average = safeParseFloat(val);
-          else if (cleanKey === 'year') newObj.Year = val ? val.toString() : 'N/A';
-          else if (cleanKey === 'month') newObj.Month = val ? val.toString() : 'N/A';
-          else if (cleanKey === 'section') newObj.Section = val ? val.toString() : 'Unknown';
-        });
-        return newObj;
-      }).filter(item => item.Section && item.Section !== 'Unknown');
-      setData(parsedData);
-      setError(null);
-    } catch (err) {
-      setError("เกิดข้อผิดพลาดในการจัดรูปแบบข้อมูล");
-    }
-  };
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                    reader.onload = (event) => {
+                        try {
+                            const data = new Uint8Array(event.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                            mapAndSetData(jsonData);
+                            setError(null);
+                        } catch (err) {
+                            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.onload = (event) => processCsvData(event.target.result);
+                    reader.readAsText(file);
+                }
+            };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    const fileName = file.name.toLowerCase();
-    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      if (!window.XLSX) { setError("กำลังโหลดไลบรารี Excel..."); return; }
-      reader.onload = (event) => {
-        try {
-          const data = new Uint8Array(event.target.result);
-          const workbook = window.XLSX.read(data, { type: 'array' });
-          const jsonData = window.XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-          mapAndSetData(jsonData);
-        } catch (err) { setError("ไม่สามารถอ่านไฟล์ Excel ได้"); }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      reader.onload = (event) => processCsvData(event.target.result);
-      reader.readAsText(file);
-    }
-  };
+            const filteredData = useMemo(() => {
+                return data.filter(item => {
+                    const matchYear = selectedYear === 'All' || item.Year?.toString() === selectedYear;
+                    const matchSection = selectedSection === 'All' || item.Section === selectedSection;
+                    return matchYear && matchSection;
+                });
+            }, [data, selectedYear, selectedSection]);
 
-  const exportToExcel = () => {
-    if (filteredData.length === 0) return;
-    const headers = ['Section', 'Year', 'Month', 'Amount', 'Number of people', 'Average'];
-    const csvRows = [headers.join(',')];
-    filteredData.forEach(item => csvRows.push([item.Section, item.Year, item.Month, item.Amount, item.People, item.Average].join(',')));
-    const blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `SCG_Heim_Trend_Report_${new Date().toISOString().slice(0,10)}.csv`;
-    link.click();
-  };
+            const stats = useMemo(() => {
+                const totalAmount = filteredData.reduce((sum, item) => sum + item.Amount, 0);
+                const totalPeople = filteredData.reduce((sum, item) => sum + item.People, 0);
+                return {
+                    totalAmount,
+                    avgPay: totalPeople > 0 ? totalAmount / totalPeople : 0,
+                    count: filteredData.length,
+                    totalPeople
+                };
+            }, [filteredData]);
 
-  const filteredData = useMemo(() => {
-    return data.filter(item => {
-      const matchYear = selectedYear === 'All' || item.Year?.toString() === selectedYear;
-      const matchSection = selectedSection === 'All' || item.Section === selectedSection;
-      return matchYear && matchSection;
-    });
-  }, [data, selectedYear, selectedSection]);
+            const treemapData = useMemo(() => {
+                const sections = [...new Set(filteredData.map(d => d.Section))];
+                return sections.map(s => {
+                    const items = filteredData.filter(d => d.Section === s);
+                    const total = items.reduce((sum, item) => sum + item.Amount, 0);
+                    const people = items.reduce((sum, item) => sum + item.People, 0);
+                    return { name: s, size: total, avgPay: Math.round(people > 0 ? total / people : 0) };
+                }).sort((a,b) => b.size - a.size);
+            }, [filteredData]);
 
-  // Trend & Growth Calculation logic
-  const trendAnalysis = useMemo(() => {
-    if (data.length === 0) return [];
-    const isAllYears = selectedYear === 'All';
-    const groupKey = isAllYears ? 'Year' : 'Month';
-    
-    const uniqueKeys = [...new Set(data.map(d => d[groupKey]))].sort((a, b) => parseInt(a) - parseInt(b));
+            const trendData = useMemo(() => {
+                const keys = selectedYear === 'All' ? 'Year' : 'Month';
+                const uniqueKeys = [...new Set(data.map(d => d[keys]))].sort((a,b) => parseInt(a) - parseInt(b));
+                return uniqueKeys.map(k => {
+                    const items = filteredData.filter(d => d[keys] === k);
+                    const total = items.reduce((sum, item) => sum + item.Amount, 0);
+                    const people = items.reduce((sum, item) => sum + item.People, 0);
+                    return { name: selectedYear === 'All' ? k : `M${k}`, amount: total, avgPay: people > 0 ? total/people : 0 };
+                }).filter(d => d.amount > 0);
+            }, [filteredData, data, selectedYear]);
 
-    let prevAmount = 0;
-    let prevAvg = 0;
+            const CustomizedTreemapContent = (props) => {
+                const { x, y, width, height, name, avgPay } = props;
+                const getTreemapColor = (val) => {
+                    if (val < 10000) return '#fee2e2';
+                    if (val < 13000) return '#fecaca';
+                    if (val < 16000) return '#f87171';
+                    if (val < 20000) return '#ef4444';
+                    return '#b91c1c';
+                };
+                if (!width || !height || width < 10 || height < 10) return null;
+                return (
+                    <g>
+                        <rect x={x} y={y} width={width} height={height} style={{ fill: getTreemapColor(avgPay), stroke: '#fff', strokeWidth: 2 }} />
+                        {width > 60 && height > 30 && (
+                            <text x={x + width / 2} y={y + height / 2} textAnchor="middle" fill={avgPay > 16000 ? '#fff' : '#450a0a'} fontSize={10} fontWeight="900" style={{ textTransform: 'uppercase' }}>
+                                {name}
+                            </text>
+                        )}
+                    </g>
+                );
+            };
 
-    const trendPoints = uniqueKeys.map((k, idx) => {
-      const items = filteredData.filter(d => d[groupKey] === k);
-      if (items.length === 0) return null;
+            if (!window.Recharts) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-scg-red mx-auto mb-4"></div>
+                            <p className="font-bold text-slate-600 tracking-widest uppercase text-xs">กำลังโหลดโมดูล Recharts...</p>
+                        </div>
+                    </div>
+                );
+            }
 
-      const total = items.reduce((sum, item) => sum + item.Amount, 0);
-      const people = items.reduce((sum, item) => sum + item.People, 0);
-      const avg = people > 0 ? total / people : 0;
+            return (
+                <div className="min-h-screen pb-12">
+                    {/* SCG HEIM Header */}
+                    <header className="bg-white border-b-4 border-scg-red px-6 py-4 shadow-sm mb-8">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-scg-red text-white px-4 py-1.5 font-black text-2xl">SCG</div>
+                                <div className="text-2xl font-black text-slate-800 tracking-tighter uppercase">HEIM ANALYTICS</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <label className="bg-scg-red hover:bg-red-700 text-white px-6 py-2.5 rounded-sm font-black text-xs uppercase tracking-widest cursor-pointer shadow-md transition-all flex items-center gap-2">
+                                    <i data-lucide="upload" className="w-4 h-4"></i> Import File
+                                    <input type="file" className="hidden" onChange={handleFileUpload} accept=".csv,.xlsx,.xls" />
+                                </label>
+                            </div>
+                        </div>
+                    </header>
 
-      const amountGrowth = prevAmount > 0 ? ((total - prevAmount) / prevAmount) * 100 : 0;
-      const avgGrowth = prevAvg > 0 ? ((avg - prevAvg) / prevAvg) * 100 : 0;
+                    <main className="max-w-7xl mx-auto px-6">
+                        {error && (
+                            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8">
+                                <p className="text-red-700 font-bold uppercase text-xs tracking-wider">เกิดข้อผิดพลาด</p>
+                                <p className="text-red-600 text-sm">{error}</p>
+                            </div>
+                        )}
 
-      prevAmount = total;
-      prevAvg = avg;
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                            <KPI h="Total Budget" v={`฿${stats.totalAmount.toLocaleString()}`} i="dollar-sign" s="งบประมาณแรงงานรวม" />
+                            <KPI h="Efficiency" v={`฿${Math.round(stats.avgPay).toLocaleString()}`} i="zap" s="ค่าเฉลี่ยต่อคน" />
+                            <KPI h="Headcount" v={`${stats.totalPeople.toLocaleString()}`} i="users" s="จำนวนคนสะสม" />
+                            <KPI h="Records" v={`${stats.count}`} i="file-text" s="จำนวนรายการข้อมูล" />
+                        </div>
 
-      return { 
-        name: isAllYears ? k : `M${k}`, 
-        amount: Math.round(total), 
-        avgPay: Math.round(avg),
-        amountGrowth: amountGrowth.toFixed(1),
-        avgGrowth: avgGrowth.toFixed(1),
-        // Simple Moving Average (window of 3 if possible)
-        movingAvg: 0 
-      };
-    }).filter(Boolean);
+                        {/* Filters */}
+                        <div className="bg-white p-6 rounded-sm border border-slate-200 mb-8 flex flex-wrap gap-6 items-center shadow-sm">
+                            <div className="flex items-center gap-2 text-scg-red font-black text-xs uppercase tracking-widest">
+                                <i data-lucide="filter" className="w-4 h-4"></i> ตัวกรอง
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase">Year</label>
+                                <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-slate-50 border-b-2 border-slate-200 px-4 py-1 font-bold text-sm outline-none focus:border-scg-red transition-all">
+                                    {['All', ...new Set(data.map(d => d.Year))].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <label className="text-[10px] font-black text-slate-400 uppercase">Section</label>
+                                <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} className="bg-slate-50 border-b-2 border-slate-200 px-4 py-1 font-bold text-sm outline-none focus:border-scg-red transition-all">
+                                    {['All', ...new Set(data.map(d => d.Section))].map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                        </div>
 
-    // Calculate 3-period Moving Average
-    return trendPoints.map((pt, idx, arr) => {
-      if (idx < 2) return { ...pt, movingAvg: pt.avgPay };
-      const sum = arr[idx].avgPay + arr[idx-1].avgPay + arr[idx-2].avgPay;
-      return { ...pt, movingAvg: Math.round(sum / 3) };
-    });
-  }, [filteredData, data, selectedYear]);
+                        {/* Charts Row */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+                            <div className="lg:col-span-2 bg-white p-8 rounded-sm shadow-sm border border-slate-100">
+                                <h4 className="font-black text-slate-800 mb-8 uppercase tracking-tighter text-lg flex items-center gap-2">
+                                    <i data-lucide="trending-up" className="w-5 h-5 scg-red"></i> Performance TrendLine
+                                </h4>
+                                <div className="h-[400px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart data={trendData}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} />
+                                            <Tooltip contentStyle={{borderRadius: '0', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                                            <Legend iconType="rect" wrapperStyle={{paddingTop: '20px', fontSize: '11px', fontWeight: 'bold'}} />
+                                            <Area type="monotone" dataKey="amount" fill="#fee2e2" stroke={SCG_RED} strokeWidth={3} name="Total Budget" />
+                                            <Line type="monotone" dataKey="avgPay" stroke={SCG_DARK} strokeWidth={4} dot={{r: 5, fill: SCG_RED}} name="Avg Efficiency" />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
 
-  const stats = useMemo(() => {
-    if (filteredData.length === 0) return { totalAmount: 0, avgPay: 0, growth: 0, count: 0 };
-    const totalAmount = filteredData.reduce((sum, item) => sum + item.Amount, 0);
-    const totalPeople = filteredData.reduce((sum, item) => sum + item.People, 0);
-    const avgPay = totalPeople > 0 ? totalAmount / totalPeople : 0;
+                            <div className="bg-white p-8 rounded-sm shadow-sm border border-slate-100">
+                                <h4 className="font-black text-slate-800 mb-8 uppercase tracking-tighter text-lg flex items-center gap-2">
+                                    <i data-lucide="layers" className="w-5 h-5 scg-red"></i> Budget Allocation
+                                </h4>
+                                <div className="h-[400px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <Treemap data={treemapData} dataKey="size" content={<CustomizedTreemapContent />}>
+                                            <Tooltip formatter={(v) => `฿${v.toLocaleString()}`} />
+                                        </Treemap>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="mt-6 space-y-3">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">Top 3 Sections (Budget)</div>
+                                    {treemapData.slice(0, 3).map((item, i) => (
+                                        <div key={i} className="flex justify-between items-center text-xs">
+                                            <span className="font-bold text-slate-600">{item.name}</span>
+                                            <span className="font-black text-scg-red">฿{Math.round(item.size).toLocaleString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
 
-    // Last period growth
-    const lastPoint = trendAnalysis[trendAnalysis.length - 1];
-    const growth = lastPoint ? parseFloat(lastPoint.avgGrowth) : 0;
-
-    return { 
-      totalAmount, 
-      totalPeople, 
-      avgPay, 
-      growth,
-      count: filteredData.length 
-    };
-  }, [filteredData, trendAnalysis]);
-
-  const treemapData = useMemo(() => {
-    const sectionsSet = [...new Set(filteredData.map(d => d.Section))];
-    return sectionsSet.map(s => {
-      const items = filteredData.filter(d => d.Section === s);
-      const totalAmount = items.reduce((sum, item) => sum + item.Amount, 0);
-      const totalPeople = items.reduce((sum, item) => sum + item.People, 0);
-      return { name: s, size: totalAmount, avgPay: Math.round(totalPeople > 0 ? totalAmount / totalPeople : 0) };
-    });
-  }, [filteredData]);
-
-  const formatNum = (val) => (val || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
-
-  const CustomizedTreemapContent = (props) => {
-    const { x, y, width, height, name, avgPay } = props;
-    const getTreemapColor = (val) => {
-      if (val < 10000) return '#fee2e2';
-      if (val < 13000) return '#fecaca';
-      if (val < 16000) return '#f87171';
-      if (val < 20000) return '#ef4444';
-      return '#b91c1c';
-    };
-    return (
-      <g>
-        <rect x={x} y={y} width={width} height={height} style={{ fill: getTreemapColor(avgPay), stroke: '#fff', strokeWidth: 2 }} />
-        {width > 60 && height > 40 && (
-          <text x={x + width / 2} y={y + height / 2 - 5} textAnchor="middle" fill={avgPay > 16000 ? '#fff' : '#450a0a'} fontSize={12} fontWeight="bold" className="uppercase tracking-tighter">
-            {name}
-          </text>
-        )}
-      </g>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800">
-      {/* Header SCG Heim Style */}
-      <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b-4 border-red-600 pb-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2 tracking-tight uppercase">
-            <span className="text-red-600">SCG</span> HEIM ANALYTICS
-          </h1>
-          <p className="text-slate-500 mt-1 font-medium italic">Labor Efficiency & Growth Trend Intelligence</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-3">
-          <button onClick={exportToExcel} className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 text-slate-700 rounded-lg hover:border-red-600 hover:text-red-600 transition-all font-bold shadow-sm">
-            <FileSpreadsheet size={18} />
-            <span className="text-sm">Export Report</span>
-          </button>
-          <label className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg cursor-pointer hover:bg-red-700 transition shadow-md font-bold">
-            <Upload size={18} />
-            <span className="text-sm">Upload Excel</span>
-            <input type="file" accept=".csv, .xlsx, .xls" className="hidden" onChange={handleFileUpload} />
-          </label>
-        </div>
-      </div>
-
-      {error && <div className="max-w-7xl mx-auto mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700"><AlertCircle size={20} /><span className="text-sm font-bold">{error}</span></div>}
-
-      {/* Main Stats with Trend Badges */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Cost" value={`฿${formatNum(stats.totalAmount)}`} icon={<DollarSign />} color="red" subtitle="งบประมาณรวม" />
-        <StatCard 
-          title="Avg Efficiency" 
-          value={`฿${formatNum(stats.avgPay)}`} 
-          icon={<Zap />} 
-          color="red" 
-          subtitle="รายได้เฉลี่ยต่อคน" 
-          trend={stats.growth}
-        />
-        <StatCard title="Workforce" value={`${formatNum(stats.totalPeople)} คน`} icon={<Users />} color="red" subtitle="กำลังคนสะสม" />
-        <StatCard title="Trend Status" value={stats.growth >= 0 ? "UPWARD" : "DOWNWARD"} icon={<Activity />} color="red" subtitle="แนวโน้มปัจจุบัน" isTrend />
-      </div>
-
-      {/* Main Chart: Trendline & Growth */}
-      <div className="max-w-7xl mx-auto bg-white p-8 rounded-3xl shadow-sm border border-slate-100 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div>
-            <h4 className="font-bold text-slate-900 flex items-center gap-2 text-xl uppercase tracking-tight">
-              <Activity size={22} className="text-red-600" />
-              Trendline & Performance Analysis
-            </h4>
-            <p className="text-xs text-slate-400 font-bold uppercase mt-1">เส้นทึบ: ค่าแรงเฉลี่ย | เส้นประ: ค่าเฉลี่ยเคลื่อนที่ (Trendline)</p>
-          </div>
-          <div className="flex gap-2">
-            <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="bg-slate-50 border-none rounded-xl text-xs font-black p-3 outline-none focus:ring-2 focus:ring-red-600 transition-all uppercase">
-              {['All Years', ...new Set(data.map(d => d.Year?.toString()).filter(Boolean))].map(y => <option key={y} value={y === 'All Years' ? 'All' : y}>{y}</option>)}
-            </select>
-            <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} className="bg-slate-50 border-none rounded-xl text-xs font-black p-3 outline-none focus:ring-2 focus:ring-red-600 transition-all uppercase">
-              {['All Sections', ...new Set(data.map(d => d.Section).filter(Boolean))].map(s => <option key={s} value={s === 'All Sections' ? 'All' : s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        
-        <div className="h-[400px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={trendAnalysis}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 700}} />
-              <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-              <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-              <Tooltip 
-                formatter={(value, name) => [formatNum(value), name]} 
-                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'}} 
-              />
-              <Legend iconType="circle" wrapperStyle={{paddingTop: '30px', fontWeight: 800, fontSize: '12px'}} />
-              <Area yAxisId="left" type="monotone" dataKey="amount" fill="#fee2e2" stroke="#e11d48" strokeWidth={0} name="Total Amount (฿)" fillOpacity={0.6} />
-              <Line yAxisId="right" type="monotone" dataKey="avgPay" stroke="#1f2937" strokeWidth={4} dot={{r: 6, fill: '#e11d48', stroke: '#fff', strokeWidth: 2}} name="Avg Pay per Head (฿)" />
-              <Line yAxisId="right" type="monotone" dataKey="movingAvg" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Trendline (3-Period MA)" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Row: Treemap & Growth Table */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2 text-lg uppercase tracking-tight">
-            <Layers size={20} className="text-red-600" />
-            Budget Allocation Treemap
-          </h4>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <Treemap data={treemapData} dataKey="size" stroke="#fff" fill="#8884d8" content={<CustomizedTreemapContent />}>
-                <Tooltip formatter={(value, name, props) => [`฿${formatNum(value)}`, `Avg: ฿${formatNum(props.payload.avgPay)}`]} />
-              </Treemap>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <h4 className="font-bold text-slate-900 mb-6 flex items-center gap-2 text-sm uppercase tracking-widest">
-            <TrendingUp size={18} className="text-red-600" />
-            Section Performance
-          </h4>
-          <div className="space-y-4">
-            {treemapData.sort((a,b) => b.size - a.size).slice(0, 6).map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-red-50 transition-all group">
-                <div className="flex-1">
-                  <div className="text-[10px] font-black text-slate-400 group-hover:text-red-500 uppercase leading-none mb-1">SECTION</div>
-                  <div className="text-xs font-bold text-slate-700 uppercase truncate max-w-[120px]">{item.name}</div>
+                        {/* Data Footer */}
+                        <div className="text-center text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mt-12">
+                            SCG HEIM • LABOR PIECE WORK ANALYTICS SYSTEM • CONFIDENTIAL
+                        </div>
+                    </main>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs font-black text-slate-900">฿{formatNum(item.avgPay)}</div>
-                  <div className={`text-[10px] font-bold flex items-center justify-end ${item.avgPay > stats.avgPay ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {item.avgPay > stats.avgPay ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-                    {Math.abs(((item.avgPay - stats.avgPay) / stats.avgPay) * 100).toFixed(0)}% vs AVG
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+            );
+        };
 
-const StatCard = ({ title, value, icon, color, subtitle, trend, isTrend }) => {
-  const isPositive = trend >= 0;
-  return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 hover:border-red-600 transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden">
-      <div className={`inline-block p-3 rounded-2xl mb-4 bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors`}>{icon}</div>
-      <p className="text-slate-400 text-[10px] font-black mb-1 uppercase tracking-widest leading-none">{title}</p>
-      <div className="flex items-end gap-2">
-        <h3 className="text-2xl font-black text-slate-900 tracking-tighter leading-tight">{value}</h3>
-        {trend !== undefined && (
-          <div className={`flex items-center text-[10px] font-bold mb-1 ${isPositive ? 'text-emerald-600' : 'text-red-600'}`}>
-            {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-            {Math.abs(trend)}%
-          </div>
-        )}
-      </div>
-      <p className="text-slate-400 text-[10px] mt-2 font-bold uppercase tracking-tight leading-none">{subtitle}</p>
-      {isTrend && (
-        <div className={`absolute -right-4 -bottom-4 opacity-5 pointer-events-none transition-transform group-hover:scale-110`}>
-          <TrendingUp size={100} />
-        </div>
-      )}
-    </div>
-  );
-};
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
 
-export default App;
+        // Initialize Lucide icons
+        const initIcons = () => {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        };
+        setTimeout(initIcons, 500);
+        setInterval(initIcons, 2000); 
+    </script>
+</body>
+</html>
